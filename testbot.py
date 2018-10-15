@@ -23,8 +23,14 @@ def send_welcome(message):
     sheet_msg = sheet.row_values(1)
     bot.reply_to(message, sheet_msg)
 
-while True:
+def main_loop():
+    bot.polling(True)
+    while 1:
+        time.sleep(3)
+
+if __name__ == '__main__':
     try:
-        bot.polling()
-    except Exception:
-        time.sleep(15)
+        main_loop()
+    except KeyboardInterrupt:
+        print('Exiting by user request.')
+        sys.exit(0)
