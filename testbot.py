@@ -1,11 +1,12 @@
 import telebot
 import time
 import sys
+import markups as mark_ups
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-bot_token = "674824175:AAE4Rtk7nhLfq78juNPq9GT80UC_pB7W8oM"
+bot_token = "649808767:AAFSKZsMbExXkC2iUHHAWKs-5Z9uLkFGicU"
 bot = telebot.TeleBot(bot_token)
 
 # use creds to create a client to interact with the Google Drive API
@@ -23,17 +24,23 @@ current_loan = spreadsheet.worksheet("Loan")
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
     cid = m.chat.id
-    bot.send_message(cid, text="Hi! You can create a loan by /createloan")
+    bot.send_message(cid, text='What would you like to do', reply_markup=mark_ups.start_markup)
+    bot.register_next_step_handler(m, create_loan)
 
-@bot.message_handler(commands=['createloan'])
+# @bot.message_handler(commands=['createloan'])
 def create_loan(m):
     cid = m.chat.id
-    msg = bot.send_message(cid, parse_mode='Markdown', text="*-----New Loan Entry-----*\n\n" + "Name: \n" + "Block: \n" + "Item: \n" + "Date: \n" + "Duration: \n" + "Purpose: \n\n" +
+    text_event = m.text
+    if (text_event == u'Create loan'):
+        msg = bot.send_message(cid, parse_mode='Markdown', text="*-----New Loan Entry-----*\n\n" + "Name: \n" + "Block: \n" + "Item: \n" + "Date: \n" + "Duration: \n" + "Purpose: \n\n" +
                        "**** *Split each entry with SPACE* ****")
-    bot.register_next_step_handler(msg, process_name_step)
-    
+        bot.register_next_step_handler(msg, process_loan)
+    else:
+        bot.reply_to(m, "goodbye")
 
-def process_name_step(m):
+
+    
+def process_loan(m):
     try:
         cid = m.chat.id
         user_data = m.text.split()
@@ -42,7 +49,7 @@ def process_name_step(m):
         msg = reply_message.format(user_data[0], user_data[1], user_data[2], user_data[3], user_data[4], user_data[5])
         bot.send_message(cid, parse_mode='Markdown', text=msg)
     except:
-        bot.send_message(cid, m, "Sorry. Loan has failed to create!")
+        bot.send_message(cid, text="Sorry. Loan has failed to create!")
 
 
 def main_loop():
