@@ -27,6 +27,27 @@ def send_welcome(m):
     bot.send_message(cid, text='What would you like to do', reply_markup=mark_ups.start_markup)
     bot.register_next_step_handler(m, create_loan)
 
+# list down all current loans
+@bot.message_handler(commands=['list'])
+def list_all(m):
+    cid = m.chat.id
+    count = current_loan.row_count
+    counter = 2
+    while counter <= count:
+        if (current_loan.cell(counter,1).value != ''):
+            name = current_loan.cell(counter,1).value
+            block = current_loan.cell(counter,2).value
+            item = current_loan.cell(counter,3).value
+            date = current_loan.cell(counter,4).value
+            duration = current_loan.cell(counter,5).value
+            purpose = current_loan.cell(counter,6).value
+            a_row = "{}. {} {} {} {} {} {}".format(counter - 1,name, block, item, date, duration, purpose)
+            bot.send_message(cid, text=a_row)
+            counter += 1
+        else:
+            bot.send_message(cid, text='End of list')
+            break
+
 # @bot.message_handler(commands=['createloan'])
 def create_loan(m):
     cid = m.chat.id
@@ -39,18 +60,31 @@ def create_loan(m):
         bot.reply_to(m, "goodbye")
 
 
-    
+
 def process_loan(m):
     try:
         cid = m.chat.id
         user_data = m.text.split()
-        current_loan.append_row(user_data)
-        reply_message = "Loan created successfully!\n\n" + "Name: {}\n" + "Block: {}\n" + "Item: {}\n" + "Date: {}\n" + "Duration: {}\n" + "Purpose: {}\n\n"
-        msg = reply_message.format(user_data[0], user_data[1], user_data[2], user_data[3], user_data[4], user_data[5])
-        bot.send_message(cid, parse_mode='Markdown', text=msg)
+        check = validation(user_data, m)
+        if(check):
+            current_loan.append_row(user_data)
+            reply_message = "Loan created successfully!\n\n" + "Name: {}\n" + "Block: {}\n" + "Item: {}\n" + "Date: {}\n" + "Duration: {}\n" + "Purpose: {}\n\n"
+            msg = reply_message.format(user_data[0], user_data[1], user_data[2], user_data[3], user_data[4], user_data[5])
+            bot.send_message(cid, parse_mode='Markdown', text=msg)
+        else:
+            bot.send_message(cid, text="Sorry. Loan has failed to create!")
     except:
         bot.send_message(cid, text="Sorry. Loan has failed to create!")
 
+# checks the block to ensure that it exist
+def validation(user_data, m):
+    cid = m.chat.id
+    block = user_data[1]
+    if (block == 'A' or block == 'B' or block == 'C' or block == 'D' or block == 'E'):
+        return True
+    else:
+        bot.send_message(cid, text="Sorry! No block exist!")
+        return False
 
 def main_loop():
     bot.polling(True)
