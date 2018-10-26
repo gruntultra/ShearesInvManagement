@@ -1,7 +1,7 @@
 import telebot
 import time
 import sys
-import markups as mark_ups
+import markups as mark_up
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -20,12 +20,21 @@ spreadsheet = client.open("Sheares Media Inventory")
 equip_sheet = spreadsheet.worksheet("Equipment_list")
 current_loan = spreadsheet.worksheet("Loan")
 
-# simple start command & bot responds with querying from google sheets
+# "start" command
 @bot.message_handler(commands=['start'])
-def send_welcome(m):
+def start(m):
     cid = m.chat.id
-    bot.send_message(cid, text='What would you like to do', reply_markup=mark_ups.start_markup)
-    bot.register_next_step_handler(m, create_loan)
+    bot.send_message(cid, parse_mode='Markdown', text='*Available Commands*\n' + '/start - start?\n' + '/menu - Main Menu\n\n' + '*Shortcuts*\n' + '/createloan - Create a loan')
+
+# "menu" command
+@bot.message_handler(commands=['menu'])
+def main_menu(m):
+    try:
+        mid = m.message_id
+        cid = m.chat.id
+        bot.edit_message_text(message_id=mid, chat_id=cid, text='Hi! What would you like to do?', reply_markup=mark_up.menu_markup())
+    except:
+        bot.send_message(chat_id=cid, text='Hi! What would you like to do?', reply_markup=mark_up.menu_markup())
 
 # list down all current loans
 @bot.message_handler(commands=['list'])
@@ -48,29 +57,106 @@ def list_all(m):
             bot.send_message(cid, text='End of list')
             break
 
-# @bot.message_handler(commands=['createloan'])
+# An object to save user data into
+class User(object):
+    def __init__(self):
+        self.name = ""
+        self.block = ""
+        self.item = ""
+        self.date = ""
+        self.duration = ""
+        self.purpose = ""
+
+user = User()
+
+# Create loan command
+@bot.message_handler(commands=['createloan'])
 def create_loan(m):
-    cid = m.chat.id
-    text_event = m.text
-    if (text_event == u'Create loan'):
-        msg = bot.send_message(cid, parse_mode='Markdown', text="*-----New Loan Entry-----*\n\n" + "Name: \n" + "Block: \n" + "Item: \n" + "Date: \n" + "Duration: \n" + "Purpose: \n\n" +
-                       "**** *Split each entry with SPACE* ****")
+    try:
+        mid = m.message_id
+        cid = m.chat.id
+        bot.edit_message_text(message_id=mid, chat_id=cid, parse_mode='Markdown', text="Hi, Would you like to create a loan?", reply_markup=mark_up.answer_markup())
+    except:
+        bot.send_message(chat_id=cid, parse_mode='Markdown', text="Hi, Would you like to create a loan?", reply_markup=mark_up.answer_markup())
+
+def process_name(m):
+    try:
+        cid = m.chat.id
+        msg = bot.send_message(cid, parse_mode='Markdown', text="Tell me the name?")
+        bot.register_next_step_handler(msg, process_block)
+    except:
+        bot.send_message(cid, text="An error has occured.")
+
+def process_block(m):
+    try:
+        cid = m.chat.id
+        user.name = m.text
+        msg = bot.send_message(cid, parse_mode='Markdown', text="Which block?")
+        bot.register_next_step_handler(msg, process_item)
+    except:
+        bot.send_message(cid, text="An error has occured.")
+
+def process_item(m):
+    try:
+        cid = m.chat.id
+        user.block = m.text
+        msg = bot.send_message(cid, parse_mode='Markdown', text="Item that is to be loaned out?")
+        bot.register_next_step_handler(msg, process_date)
+    except:
+        bot.send_message(cid, text="An error has occured.")
+
+def process_date(m):
+    try:
+        cid = m.chat.id
+        user.item = m.text
+        msg = bot.send_message(cid, parse_mode='Markdown', text="Date that it is loaned out?")
+        bot.register_next_step_handler(msg, process_duration)
+    except:
+        bot.send_message(cid, text="An error has occured.")
+
+def process_duration(m):
+    try:
+        cid = m.chat.id
+        user.date = m.text
+        msg = bot.send_message(cid, parse_mode='Markdown', text="Duration?")
+        bot.register_next_step_handler(msg, process_purpose)
+    except:
+        bot.send_message(cid, text="An error has occured.")
+
+def process_purpose(m):
+    try:
+        cid = m.chat.id
+        user.duration = m.text
+        msg = bot.send_message(cid, parse_mode='Markdown', text="Purpose of the loan?")
+        bot.register_next_step_handler(msg, verify_loan)
+    except:
+        bot.send_message(cid, text="An error has occured.")
+
+def verify_loan(m):
+    try:
+        cid = m.chat.id
+        user.purpose = m.text
+        verify_msg = "*Please verify that the entries are correct!*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Date:* {}\n" + "*Duration:* {}\n" + "*Purpose:* {}\n\n"
+        msg = bot.send_message(cid, 
+                                parse_mode="Markdown", 
+                                text=verify_msg.format(user.name, user.block, user.item, user.date, user.duration, user.purpose),
+                                reply_markup=mark_up.submit_loan_markup()
+                                )
         bot.register_next_step_handler(msg, process_loan)
-    else:
-        bot.reply_to(m, "goodbye")
-
-
+    except:
+        bot.send_message(cid, text="An error has occured.")
 
 def process_loan(m):
     try:
         cid = m.chat.id
-        user_data = m.text.split()
+        user_data = [user.name, user.block, user.item, user.date, user.duration, user.purpose]
         check = validation(user_data, m)
         if(check):
             current_loan.append_row(user_data)
-            reply_message = "Loan created successfully!\n\n" + "Name: {}\n" + "Block: {}\n" + "Item: {}\n" + "Date: {}\n" + "Duration: {}\n" + "Purpose: {}\n\n"
+            reply_message = "*Loan created successfully!*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Date:* {}\n" + "*Duration:* {}\n" + "*Purpose:* {}\n\n"
             msg = reply_message.format(user_data[0], user_data[1], user_data[2], user_data[3], user_data[4], user_data[5])
-            bot.send_message(cid, parse_mode='Markdown', text=msg)
+            bot.send_message(cid, parse_mode='Markdown', text=msg, reply_markup=mark_up.great_markup())
+            bot.clear_step_handler(m)
         else:
             bot.send_message(cid, text="Sorry. Loan has failed to create!")
     except:
@@ -85,6 +171,33 @@ def validation(user_data, m):
     else:
         bot.send_message(cid, text="Sorry! No block exist!")
         return False
+
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    mid = call.message.message_id
+    cid = call.message.chat.id
+    if call.data == "cb_createloan":
+        bot.answer_callback_query(call.id)
+        create_loan(call.message)
+    elif call.data == "cb_viewloan":
+        pass
+    elif call.data == "cb_editloan":
+        pass
+    elif call.data == "cb_letscreate":
+        bot.answer_callback_query(call.id)
+        process_name(call.message)
+    elif call.data == "cb_mainmenu":
+        bot.answer_callback_query(call.id)
+        main_menu(call.message)
+    elif call.data == "cb_editloan":
+        pass
+    elif call.data == "cb_submitloan":
+        bot.answer_callback_query(call.id)
+        bot.edit_message_text(message_id=mid, chat_id=cid, text="Verifying...")
+        process_loan(call.message)
+    elif call.data == 'cb_great':
+        bot.answer_callback_query(call.id, text="hehe")
 
 def main_loop():
     bot.polling(True)
