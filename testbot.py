@@ -162,56 +162,45 @@ def verify_loan(m, args):
         bot.send_message(cid, text="An error has occured.")
 
 def edit_current_loan(m):
-    cid = m.chat.id
-    mid = m.message_id
-    msg = "*Edit current loan*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Date:* {}\n" + "*Duration:* {}\n" + "*Purpose:* {}\n\n"
-    bot.edit_message_text(message_id=mid, 
-                        chat_id=cid, 
-                        parse_mode="Markdown",
-                        text=msg.format(user.name, user.block, user.item, user.date, user.duration, user.purpose), 
-                        reply_markup=mark_up.edit_current_loan_markup())
+    try:
+        cid = m.chat.id
+        mid = m.message_id
+        msg = "*Edit current loan*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Date:* {}\n" + "*Duration:* {}\n" + "*Purpose:* {}\n\n"
+        bot.edit_message_text(message_id=mid, 
+                            chat_id=cid, 
+                            parse_mode="Markdown",
+                            text=msg.format(user.name, user.block, user.item, user.date, user.duration, user.purpose), 
+                            reply_markup=mark_up.edit_current_loan_markup())
+    except:
+        bot.send_message(cid, text="An error has occured.")
 
 def edit_current_loan_data(m, data):
-    mid = m.message_id
+    try:
+        mid = m.message_id
+        cid = m.chat.id
+        msg = bot.edit_message_text(message_id=mid, chat_id=cid, text="OK. Send me the new " + data + ".")
+        bot.register_next_step_handler(msg, save_edit_current_loan_data, data)
+    except:
+        bot.send_message(cid, text="An error has occured.")
+
+def save_edit_current_loan_data(m, data):
     cid = m.chat.id
     if(data == "name"):
-        arg = "name"
-        msg = bot.edit_message_text(message_id=mid, chat_id=cid, text="OK. Send me the new name.")
-    elif(data == "block"):
-        arg = "block"
-        msg = bot.edit_message_text(message_id=mid, chat_id=cid, text="OK. Send me the new block.")
-    elif(data == "item"):
-        arg = "item"
-        msg = bot.edit_message_text(message_id=mid, chat_id=cid, text="OK. Send me the new item.")
-    elif(data == "date"):
-        arg = "date"
-        msg = bot.edit_message_text(message_id=mid, chat_id=cid, text="OK. Send me the new date.")
-    elif(data == "duration"):
-        arg = "duration"
-        msg = bot.edit_message_text(message_id=mid, chat_id=cid, text="OK. Send me the new duration.")
-    elif(data == "purpose"):
-        arg = "purpose"
-        msg = bot.edit_message_text(message_id=mid, chat_id=cid, text="OK. Send me the new purpose.")
-    bot.register_next_step_handler(msg, save_edit_current_loan_data, arg)
-
-def save_edit_current_loan_data(m, arg):
-    cid = m.chat.id
-    if(arg == "name"):
         user.name = m.text
         bot.send_message(chat_id=cid, text="Name has succesfully changed!")
-    elif(arg == "block"):
+    elif(data == "block"):
         user.block = m.text
         bot.send_message(chat_id=cid, text="Block has succesfully changed!")
-    elif(arg == "item"):
+    elif(data == "item"):
         user.item = m.text
         bot.send_message(chat_id=cid, text="Item has succesfully changed!")
-    elif(arg == "date"):
+    elif(data == "date"):
         user.date = m.text
         bot.send_message(chat_id=cid, text="Date has succesfully changed!")
-    elif(arg == "duration"):
+    elif(data == "duration"):
         user.duration = m.text
         bot.send_message(chat_id=cid, text="Duration has succesfully changed!")
-    elif(arg == "purpose"):
+    elif(data == "purpose"):
         user.purpose = m.text
         bot.send_message(chat_id=cid, text="Purpose has succesfully changed!")
     verify_loan(m, True)
