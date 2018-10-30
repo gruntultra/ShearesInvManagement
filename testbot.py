@@ -17,7 +17,7 @@ client = gspread.authorize(creds)
 spreadsheet = client.open("Sheares Media Inventory")
 
 # Assign each sheet to a var
-equip_sheet = spreadsheet.worksheet("Equipment_list")
+equipment_list = spreadsheet.worksheet("Equipment_list")
 current_loan = spreadsheet.worksheet("Loan")
 
 # /start command
@@ -212,24 +212,55 @@ def process_loan(m):
         check = validation(user_data, m)
         if(check):
             current_loan.append_row(user_data)
+            stock_taking(user.item)
             reply_message = "*Loan created successfully!*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Date:* {}\n" + "*Duration:* {}\n" + "*Purpose:* {}\n\n"
             msg = reply_message.format(user_data[0], user_data[1], user_data[2], user_data[3], user_data[4], user_data[5])
             bot.send_message(cid, parse_mode='Markdown', text=msg, reply_markup=mark_up.great_markup())
             bot.clear_step_handler(m)
         else:
-            bot.send_message(cid, text="Sorry. Loan has failed to create!")
+            bot.send_message(cid, text="Loan has failed to create!")
     except:
-        bot.send_message(cid, text="Sorry. Loan has failed to create!")
+        bot.send_message(cid, text="Loan has failed to create!")
+
+# validation process
+def validation(user_data, m):
+    block = user_data[1]
+    item = user_data[2]
+    check_block = check_block_avail(block, m)
+    check_item = check_item_avail(item, m)
+    if(check_block and check_item):
+        return True
+    else:
+        return False
 
 # checks the block to ensure that it exist
-def validation(user_data, m):
+def check_block_avail(block, m):
     cid = m.chat.id
-    block = user_data[1]
     if (block == 'A' or block == 'B' or block == 'C' or block == 'D' or block == 'E'):
         return True
     else:
         bot.send_message(cid, text="Sorry! No block exist!")
         return False
+
+# checks if the item is available to be loaned out
+def check_item_avail(item_name, m):
+    cid = m.chat.id
+    cell = equipment_list.find(item_name)
+    stock_quantity = int(equipment_list.cell(cell.row, 4).value)
+    if(stock_quantity >= 1):
+        return True
+    else:
+        bot.send_message(cid, text="Sorry! Item has all been loaned out!")
+        return False
+    
+# stock taking
+def stock_taking(item_name):
+    item = equipment_list.find(item_name)
+    in_stock = int(equipment_list.cell(item.row, 4).value) - 1
+    on_loan = int(equipment_list.cell(item.row, 5).value) + 1
+    equipment_list.update_cell(item.row, 4, in_stock)
+    equipment_list.update_cell(item.row, 5, on_loan)
+    return
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -254,7 +285,7 @@ def callback_query(call):
         edit_current_loan(call.message)
     elif call.data == "cb_submitloan":
         bot.answer_callback_query(call.id)
-        bot.edit_message_text(message_id=mid, chat_id=cid, text="Verifying...")
+        bot.edit_message_text(message_id=mid, chat_id=cid, text="Loading...")
         process_loan(call.message)
     elif call.data == 'cb_great':
         bot.answer_callback_query(call.id, text="hehe")
