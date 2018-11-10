@@ -2,7 +2,7 @@ import telebot
 import time
 import sys
 import markups as mark_up
-
+import datetime
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -40,22 +40,89 @@ def main_menu(m):
 @bot.message_handler(commands=['list'])
 def list_all(m):
     cid = m.chat.id
-    count = current_loan.row_count
-    counter = 2
-    while counter <= count:
-        if (current_loan.cell(counter,1).value != ''):
-            name = current_loan.cell(counter,1).value
-            block = current_loan.cell(counter,2).value
-            item = current_loan.cell(counter,3).value
-            date = current_loan.cell(counter,4).value
-            duration = current_loan.cell(counter,5).value
-            purpose = current_loan.cell(counter,6).value
-            a_row = "{}. {} {} {} {} {} {}".format(counter - 1,name, block, item, date, duration, purpose)
-            bot.send_message(cid, text=a_row)
+    list_of_lists = current_loan.get_all_values()
+    count = len(list_of_lists)
+    counter = 1
+    while counter < count:
+        name = list_of_lists[counter][0]
+        block = list_of_lists[counter][1]
+        item = list_of_lists[counter][2]
+        date = list_of_lists[counter][3]
+        duration = list_of_lists[counter][4]
+        purpose = list_of_lists[counter][5]
+        a_row = "{}. {} {} {} {} {} {}".format(counter,name, block, item, date, duration, purpose)
+        bot.send_message(cid, text=a_row)
+        counter += 1
+    bot.send_message(cid, text='End of list')
+
+#List Based on name
+@bot.message_handler(commands=['listName'])
+def list_name(m):
+    cid = m.chat.id
+    msg = bot.send_message(cid, parse_mode='Markdown', text="What is the name?")
+    bot.register_next_step_handler(msg, find_user)
+    
+def find_user(m):
+    try:
+        cid = m.chat.id
+        compare = m.text
+        list_of_lists = current_loan.get_all_values()
+        count = len(list_of_lists)      
+        counter = 1
+        occurance = 0
+        while counter < count:
+            if list_of_lists[counter][0] == compare:
+                name = list_of_lists[counter][0]
+                block = list_of_lists[counter][1]
+                item = list_of_lists[counter][2]
+                date = list_of_lists[counter][3]
+                duration = list_of_lists[counter][4]
+                purpose = list_of_lists[counter][5]
+                a_row = "{}. {} {} {} {} {} {}".format(occurance + 1,name, block, item, date, duration, purpose)
+                bot.send_message(cid, text=a_row)
+                occurance +=1
             counter += 1
+        if occurance == 0:
+            txt = "Not Found"
         else:
-            bot.send_message(cid, text='End of list')
-            break
+            txt = "Found {} of {}".format(occurance,compare)
+        bot.send_message(cid, text=txt)
+    except Exception as e:
+        print(e)
+        bot.send_message(cid, text="An error has occured.")
+
+#list down expired users
+@bot.message_handler(commands=['listExpired'])
+def list_expired(m):
+    cid = m.chat.id
+    list_of_lists = current_loan.get_all_values()
+    count = len(list_of_lists)
+    counter = 1
+    occurance = 0
+    while counter < count:
+        name = list_of_lists[counter][0]
+        block = list_of_lists[counter][1]
+        item = list_of_lists[counter][2]
+        date = list_of_lists[counter][3]
+        duration = list_of_lists[counter][4]
+        purpose = list_of_lists[counter][5]
+        number = ''.join(x for x in duration if x.isdigit())
+        type_Duration = ''.join([i for i in duration if not i.isdigit()])
+        if type_Duration == " week":
+            number = int(number) * 7
+        elif type_Duration == " year":
+            number = number * 365
+        format_str = '%d/%m/%Y' # The format
+        calculated_Date = datetime.datetime.strptime(date, format_str)
+        end_date = calculated_Date + datetime.timedelta(days=int(number))
+        todays_date = time.strftime("%d/%m/%Y")
+        todays_date = datetime.datetime.strptime(todays_date, format_str)
+        if end_date < todays_date:
+            a_row = "{}. {} {} {} {} {} {}".format(occurance + 1,name, block, item, date, duration, purpose)
+            occurance += 1
+            bot.send_message(cid, text=a_row)
+        counter += 1
+    bot.send_message(cid, text='End of list')
 
 # An object to save user data into during createloan 
 class User(object):
@@ -161,6 +228,8 @@ def verify_loan(m, args):
     except:
         bot.send_message(cid, text="An error has occured.")
 
+   
+
 def edit_current_loan(m):
     try:
         cid = m.chat.id
@@ -262,6 +331,28 @@ def stock_taking(item_name):
     equipment_list.update_cell(item.row, 5, on_loan)
     return
 
+#work in progress
+@bot.message_handler(commands=['returnloan'])
+def return_loan(m):
+    try:
+        cid = m.chat.id
+        mid = m.message_id
+        msg = bot.send_message(cid, parse_mode='Markdown', text="What is the name?")
+        bot.register_next_step_handler(msg, find_name)
+    except:
+        bot.send_message(cid, text="An error has occured.")
+
+def find_name(m):
+    try:
+        cid = m.chat.id
+        mid = m.message_id
+        search_name = m.text
+        list_of_lists = current_loan.get_all_values()
+        print(list_of_lists[1][2])
+        bot.send_message(cid, text='Please key in the following details to confirm deletion: name, block, item and purpose')     
+    except Exception as e: 
+        print(e)
+        bot.send_message(cid, text="Error is here.")
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
