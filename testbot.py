@@ -19,6 +19,7 @@ spreadsheet = client.open("Sheares Media Inventory")
 # Assign each sheet to a var
 equipment_list = spreadsheet.worksheet("Equipment_list")
 current_loan = spreadsheet.worksheet("Loan")
+loan_history = spreadsheet.worksheet("Loan_history")
 
 # /start command
 @bot.message_handler(commands=['start'])
@@ -111,7 +112,7 @@ def list_expired(m):
         if type_Duration == " week":
             number = int(number) * 7
         elif type_Duration == " year":
-            number = number * 365
+            number = int(number) * 365
         format_str = '%d/%m/%Y' # The format
         calculated_Date = datetime.datetime.strptime(date, format_str)
         end_date = calculated_Date + datetime.timedelta(days=int(number))
@@ -331,7 +332,8 @@ def stock_taking(item_name):
     equipment_list.update_cell(item.row, 5, on_loan)
     return
 
-#work in progress
+
+#return loan and keep track of history
 @bot.message_handler(commands=['returnloan'])
 def return_loan(m):
     try:
@@ -345,14 +347,63 @@ def return_loan(m):
 def find_name(m):
     try:
         cid = m.chat.id
-        mid = m.message_id
-        search_name = m.text
+        compare = m.text
         list_of_lists = current_loan.get_all_values()
-        print(list_of_lists[1][2])
-        bot.send_message(cid, text='Please key in the following details to confirm deletion: name, block, item and purpose')     
+        count = len(list_of_lists)      
+        counter = 1
+        occurance = 0
+        while counter < count:
+            if list_of_lists[counter][0] == compare:
+                name = list_of_lists[counter][0]
+                block = list_of_lists[counter][1]
+                item = list_of_lists[counter][2]
+                date = list_of_lists[counter][3]
+                duration = list_of_lists[counter][4]
+                purpose = list_of_lists[counter][5]
+                a_row = "{}. {} {} {} {} {} {} row {}".format(occurance + 1,name, block, item, date, duration, purpose, counter)
+                bot.send_message(cid, text=a_row)
+                occurance +=1
+            counter += 1
+        if occurance == 0:
+            txt = "Not Found"
+        else:
+            txt = "Found {} of {}".format(occurance,compare)
+            msg = bot.send_message(cid, parse_mode='Markdown', text="Which item is returned? Specify the row number")
+            bot.register_next_step_handler(msg, return_process)
+        bot.send_message(cid, text=txt)
     except Exception as e: 
         print(e)
         bot.send_message(cid, text="Error is here.")
+
+def return_process(m):
+    try:
+        cid = m.chat.id
+        row = int(m.text)
+        list_of_lists = current_loan.get_all_values()
+        stock_track = list_of_lists[row][2]
+        check = stock_returning(stock_track, m)
+        if check:
+            loan_history.append_row(list_of_lists[row])
+            current_loan.delete_row(row + 1)
+            bot.send_message(cid, text="Deletion is successful.")
+        else:
+            bot.send_message(cid, text="Failed to delete.")
+    except Exception as e:
+        print(e)
+        bot.send_message(cid, text="Problem with the deletion process.")
+        
+def stock_returning(item_name, m):
+    try:
+        cid = m.chat.id
+        item = equipment_list.find(item_name)
+        in_stock = int(equipment_list.cell(item.row, 4).value) + 1
+        on_loan = int(equipment_list.cell(item.row, 5).value) - 1
+        equipment_list.update_cell(item.row, 4, in_stock)
+        equipment_list.update_cell(item.row, 5, on_loan)
+        return True
+    except:
+        bot.send_message(cid, text="Somehow the stock isnt returning.")
+        return False
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
