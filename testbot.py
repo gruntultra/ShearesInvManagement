@@ -3,6 +3,7 @@ import time
 import sys
 import markups as mark_up
 import datetime
+import re
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -44,17 +45,17 @@ def list_all(m):
     list_of_lists = current_loan.get_all_values()
     count = len(list_of_lists)
     counter = 1
+    a_row = ''
     while counter < count:
         name = list_of_lists[counter][0]
         block = list_of_lists[counter][1]
         item = list_of_lists[counter][2]
-        date = list_of_lists[counter][3]
-        duration = list_of_lists[counter][4]
+        startdate = list_of_lists[counter][3]
+        enddate = list_of_lists[counter][4]
         purpose = list_of_lists[counter][5]
-        a_row = "{}. {} {} {} {} {} {}".format(counter,name, block, item, date, duration, purpose)
-        bot.send_message(cid, text=a_row)
+        a_row += "*{}.* {}, {}, {}, {}, {}, {}\n".format(counter, name, block, item, startdate, enddate, purpose)
         counter += 1
-    bot.send_message(cid, text='End of list')
+    bot.send_message(cid, parse_mode='markdown', text=a_row + '\nEnd of list')
 
 #List Based on name
 @bot.message_handler(commands=['listName'])
@@ -76,10 +77,10 @@ def find_user(m):
                 name = list_of_lists[counter][0]
                 block = list_of_lists[counter][1]
                 item = list_of_lists[counter][2]
-                date = list_of_lists[counter][3]
-                duration = list_of_lists[counter][4]
+                startdate = list_of_lists[counter][3]
+                enddate = list_of_lists[counter][4]
                 purpose = list_of_lists[counter][5]
-                a_row = "{}. {} {} {} {} {} {}".format(occurance + 1,name, block, item, date, duration, purpose)
+                a_row = "{}. {} {} {} {} {} {}".format(occurance + 1,name, block, item, startdate, enddate, purpose)
                 bot.send_message(cid, text=a_row)
                 occurance +=1
             counter += 1
@@ -100,30 +101,23 @@ def list_expired(m):
     count = len(list_of_lists)
     counter = 1
     occurance = 0
+    a_row = ''
     while counter < count:
         name = list_of_lists[counter][0]
         block = list_of_lists[counter][1]
         item = list_of_lists[counter][2]
-        date = list_of_lists[counter][3]
-        duration = list_of_lists[counter][4]
+        startdate = list_of_lists[counter][3]
+        enddate = list_of_lists[counter][4]
         purpose = list_of_lists[counter][5]
-        number = ''.join(x for x in duration if x.isdigit())
-        type_Duration = ''.join([i for i in duration if not i.isdigit()])
-        if type_Duration == " week":
-            number = int(number) * 7
-        elif type_Duration == " year":
-            number = int(number) * 365
-        format_str = '%d/%m/%Y' # The format
-        calculated_Date = datetime.datetime.strptime(date, format_str)
-        end_date = calculated_Date + datetime.timedelta(days=int(number))
-        todays_date = time.strftime("%d/%m/%Y")
+        format_str = '%d/%m/%y' # The format
+        todays_date = time.strftime("%d/%m/%y")
         todays_date = datetime.datetime.strptime(todays_date, format_str)
+        end_date = datetime.datetime.strptime(enddate, format_str)
         if end_date < todays_date:
-            a_row = "{}. {} {} {} {} {} {}".format(occurance + 1,name, block, item, date, duration, purpose)
+            a_row += "*{}.* *Name:* {}\n *Block:* {}\n *Item:* {}\n *Start Date:* {}\n *End Date:* {}\n *Purpose:* {}\n\n".format(occurance + 1,name, block, item, startdate, enddate, purpose)
             occurance += 1
-            bot.send_message(cid, text=a_row)
         counter += 1
-    bot.send_message(cid, text='End of list')
+    bot.send_message(cid, parse_mode='markdown', text=a_row + '\nEnd of list')
 
 # An object to save user data into during createloan 
 class User(object):
@@ -131,7 +125,8 @@ class User(object):
         self.name = ""
         self.block = ""
         self.item = ""
-        self.date = ""
+        self.startdate = ""
+        self.enddate = ""
         self.duration = ""
         self.purpose = ""
 
@@ -143,24 +138,28 @@ def create_loan(m):
     try:
         mid = m.message_id
         cid = m.chat.id
-        bot.edit_message_text(message_id=mid, chat_id=cid, parse_mode='Markdown', text="Would you like to create a loan?", reply_markup=mark_up.answer_markup())
+        bot.edit_message_text(message_id=mid, chat_id=cid, parse_mode='Markdown', text="Would you like to create a loan?", reply_markup=mark_up.createloan_submenu_markup())
     except:
-        bot.send_message(chat_id=cid, parse_mode='Markdown', text="Would you like to create a loan?", reply_markup=mark_up.answer_markup())
+        bot.send_message(chat_id=cid, parse_mode='Markdown', text="Would you like to create a loan?", reply_markup=mark_up.createloan_submenu_markup())
 
 def process_name(m):
     try:
         cid = m.chat.id
-        msg = bot.send_message(cid, parse_mode='Markdown', text="Tell me the name?")
-        bot.register_next_step_handler(msg, process_block)
+        msg = bot.send_message(cid, parse_mode='Markdown', text="What is the name?")
+        bot.register_next_step_handler(msg, process_block, True)
     except:
         bot.send_message(cid, text="An error has occured.")
 
-def process_block(m):
+def process_block(m, arg):
     try:
         cid = m.chat.id
-        user.name = m.text
-        msg = bot.send_message(cid, parse_mode='Markdown', text="Which block?")
-        bot.register_next_step_handler(msg, process_item)
+        if(arg):
+            user.name = m.text
+            msg = bot.send_message(cid, parse_mode='Markdown', text="Which block?")
+            bot.register_next_step_handler(msg, process_item)
+        else:
+            msg = bot.send_message(cid, parse_mode='Markdown', text="Which block?")
+            bot.register_next_step_handler(msg, process_item)
     except:
         bot.send_message(cid, text="An error has occured.")
 
@@ -168,35 +167,56 @@ def process_item(m):
     try:
         cid = m.chat.id
         user.block = m.text
-        msg = bot.send_message(cid, parse_mode='Markdown', text="Item that is to be loaned out?")
-        bot.register_next_step_handler(msg, process_date)
+        block_val_result = block_validation(user.block, m)
+        if (block_val_result):
+            msg = bot.send_message(cid, parse_mode='Markdown', text="What is the item/items that are to be loaned out? Specify the item name as well as the quantity. \n\n*If there is more than one, type in this format:*\n\nFlash - 2\nTripod - 1")
+            bot.register_next_step_handler(msg, process_startdate, True)
+        else:
+            process_block(m, False)
     except:
         bot.send_message(cid, text="An error has occured.")
 
-def process_date(m):
+def process_startdate(m, arg):
     try:
         cid = m.chat.id
-        user.item = m.text
-        msg = bot.send_message(cid, parse_mode='Markdown', text="Date that it is loaned out?")
-        bot.register_next_step_handler(msg, process_duration)
+        if (arg):
+            user.item = m.text
+            msg = bot.send_message(cid, parse_mode='Markdown', text="Date that it is loaned out?\n\n*Input the date in this format dd/mm/yy*")
+            bot.register_next_step_handler(msg, process_enddate, True)
+        else:
+            msg = bot.send_message(cid, parse_mode='Markdown', text="Date that it is loaned out?\n\n*Input the date in this format dd/mm/yy*")
+            bot.register_next_step_handler(msg, process_enddate, True)
     except:
         bot.send_message(cid, text="An error has occured.")
 
-def process_duration(m):
+def process_enddate(m, arg):
     try:
         cid = m.chat.id
-        user.date = m.text
-        msg = bot.send_message(cid, parse_mode='Markdown', text="Duration?")
-        bot.register_next_step_handler(msg, process_purpose)
+        if (arg):
+            user.startdate = m.text
+            date_val_result = start_date_validation(user.startdate, m)
+            if (date_val_result):
+                msg = bot.send_message(cid, parse_mode='Markdown', text="Date that the item should be returned?\n\n*Input the date in this format dd/mm/yy*")
+                bot.register_next_step_handler(msg, process_purpose)
+            else:
+                process_startdate(m, False)
+        else:
+            user.startdate = user.startdate
+            msg = bot.send_message(cid, parse_mode='Markdown', text="Date that the item should be returned?\n\n*Input the date in this format dd/mm/yy*")
+            bot.register_next_step_handler(msg, process_purpose)
     except:
         bot.send_message(cid, text="An error has occured.")
 
 def process_purpose(m):
     try:
         cid = m.chat.id
-        user.duration = m.text
-        msg = bot.send_message(cid, parse_mode='Markdown', text="Purpose of the loan?")
-        bot.register_next_step_handler(msg, process_all_data)
+        user.enddate = m.text
+        date_val_result = end_date_validation(user.enddate, m)
+        if (date_val_result):
+            msg = bot.send_message(cid, parse_mode='Markdown', text="Purpose of the loan?")
+            bot.register_next_step_handler(msg, process_all_data)
+        else:
+            process_enddate(m, False)
     except:
         bot.send_message(cid, text="An error has occured.")
 
@@ -212,43 +232,48 @@ def verify_loan(m, args):
     try:
         cid = m.chat.id
         mid = m.message_id
-        verify_msg = "*Please verify that the entries are correct!*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Date:* {}\n" + "*Duration:* {}\n" + "*Purpose:* {}\n\n"
+        verify_msg = "*Please verify that the entries are correct!*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Start Date:* {}\n" + "*End Date:* {}\n" + "*Purpose:* {}\n\n"
         if(args == True):
             bot.send_message(cid, 
                             parse_mode="Markdown", 
-                            text=verify_msg.format(user.name, user.block, user.item, user.date, user.duration, user.purpose),
+                            text=verify_msg.format(user.name, user.block, user.item, user.startdate, user.enddate, user.purpose),
                             reply_markup=mark_up.submit_loan_markup()
                             )
         else:
             bot.edit_message_text(message_id=mid,
                             chat_id=cid, 
                             parse_mode="Markdown", 
-                            text=verify_msg.format(user.name, user.block, user.item, user.date, user.duration, user.purpose),
+                            text=verify_msg.format(user.name, user.block, user.item, user.startdate, user.enddate, user.purpose),
                             reply_markup=mark_up.submit_loan_markup()
                             )
     except:
         bot.send_message(cid, text="An error has occured.")
 
-   
-
 def edit_current_loan(m):
     try:
         cid = m.chat.id
         mid = m.message_id
-        msg = "*Edit current loan*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Date:* {}\n" + "*Duration:* {}\n" + "*Purpose:* {}\n\n"
+        msg = "*Edit current loan*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Start Date:* {}\n" + "*End Date:* {}\n" + "*Purpose:* {}\n\n"
         bot.edit_message_text(message_id=mid, 
-                            chat_id=cid, 
-                            parse_mode="Markdown",
-                            text=msg.format(user.name, user.block, user.item, user.date, user.duration, user.purpose), 
-                            reply_markup=mark_up.edit_current_loan_markup())
+                                chat_id=cid, 
+                                parse_mode="Markdown",
+                                text=msg.format(user.name, user.block, user.item, user.startdate, user.enddate, user.purpose), 
+                                reply_markup=mark_up.edit_current_loan_markup())
     except:
         bot.send_message(cid, text="An error has occured.")
 
 def edit_current_loan_data(m, data):
     try:
-        mid = m.message_id
         cid = m.chat.id
-        msg = bot.edit_message_text(message_id=mid, chat_id=cid, text="OK. Send me the new " + data + ".")
+        msg = bot.send_message(chat_id=cid, text="OK. Send me the new " + data + ".")
+        bot.register_next_step_handler(msg, save_edit_current_loan_data, data)
+    except:
+        bot.send_message(cid, text="An error has occured.")
+
+def validation_fail(m, data):
+    try:
+        cid = m.chat.id
+        msg = bot.send_message(chat_id=cid, text="Send me the " + data + " again.")
         bot.register_next_step_handler(msg, save_edit_current_loan_data, data)
     except:
         bot.send_message(cid, text="An error has occured.")
@@ -257,81 +282,113 @@ def save_edit_current_loan_data(m, data):
     cid = m.chat.id
     if(data == "name"):
         user.name = m.text
-        bot.send_message(chat_id=cid, text="Name has succesfully changed!")
+        bot.send_message(chat_id=cid, text="Success! Name Updated.")
     elif(data == "block"):
         user.block = m.text
-        bot.send_message(chat_id=cid, text="Block has succesfully changed!")
+        block_val = block_validation(user.block, m)
+        if(block_val):
+            bot.send_message(chat_id=cid, text="Success! Block Updated.")
+            verify_loan(m, True)
+        else:
+            validation_fail(m, 'block')
     elif(data == "item"):
         user.item = m.text
-        bot.send_message(chat_id=cid, text="Item has succesfully changed!")
-    elif(data == "date"):
-        user.date = m.text
-        bot.send_message(chat_id=cid, text="Date has succesfully changed!")
-    elif(data == "duration"):
-        user.duration = m.text
-        bot.send_message(chat_id=cid, text="Duration has succesfully changed!")
+        bot.send_message(chat_id=cid, text="Success! Item Updated.")
+    elif(data == "startdate"):
+        user.startdate = m.text
+        startdate_val = start_date_validation(user.startdate, m)
+        if(startdate_val):
+            bot.send_message(chat_id=cid, text="Success! Start Date Updated.")
+            verify_loan(m, True)
+        else:
+            validation_fail(m, 'startdate')
+    elif(data == "enddate"):
+        user.enddate = m.text
+        enddate_val = end_date_validation(user.startdate, m)
+        if(enddate_val):
+            bot.send_message(chat_id=cid, text="Success! End Date Updated.")
+            verify_loan(m, True)
+        else:
+            validation_fail(m, 'enddate')
     elif(data == "purpose"):
         user.purpose = m.text
-        bot.send_message(chat_id=cid, text="Purpose has succesfully changed!")
-    verify_loan(m, True)
+        bot.send_message(chat_id=cid, text="Success! Purpose Updated.")
 
 def process_loan(m):
     try:
         cid = m.chat.id
-        user_data = [user.name, user.block, user.item, user.date, user.duration, user.purpose]
-        check = validation(user_data, m)
-        if(check):
-            current_loan.append_row(user_data)
-            stock_taking(user.item)
-            reply_message = "*Loan created successfully!*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Date:* {}\n" + "*Duration:* {}\n" + "*Purpose:* {}\n\n"
-            msg = reply_message.format(user_data[0], user_data[1], user_data[2], user_data[3], user_data[4], user_data[5])
-            bot.send_message(cid, parse_mode='Markdown', text=msg, reply_markup=mark_up.great_markup())
-            bot.clear_step_handler(m)
-        else:
-            bot.send_message(cid, text="Loan has failed to create!")
+        user_data = [user.name, user.block, user.item, user.startdate, user.enddate, user.purpose]
+        current_loan.append_row(user_data)
+        stock_taking(user.item)
+        reply_message = "*Loan created successfully!*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Start Date:* {}\n" + "*End Date:* {}\n" + "*Purpose:* {}\n\n"
+        msg = reply_message.format(user_data[0], user_data[1], user_data[2], user_data[3], user_data[4], user_data[5])
+        bot.send_message(cid, parse_mode='Markdown', text=msg, reply_markup=mark_up.great_markup())
+        bot.clear_step_handler(m)
     except:
         bot.send_message(cid, text="Loan has failed to create!")
 
-# validation process
-def validation(user_data, m):
-    block = user_data[1]
-    item = user_data[2]
-    check_block = check_block_avail(block, m)
-    check_item = check_item_avail(item, m)
-    if(check_block and check_item):
+def block_validation(block, m):
+    cid = m.chat.id
+    block_criteria = re.match(re.compile(r'[A-Ea-e]'), block)
+    if(block_criteria):
         return True
     else:
+        bot.send_message(cid, text="It doesn't seem like there is Block " + block + " in Sheares Hall. Please type again.")
         return False
 
-# checks the block to ensure that it exist
-def check_block_avail(block, m):
+def start_date_validation(date, m):
     cid = m.chat.id
-    if (block == 'A' or block == 'B' or block == 'C' or block == 'D' or block == 'E'):
+    pattern = re.compile(r'^(3[01]|[12][0-9]|0?[1-9])/(1[0-2]|0?[1-9])/(?:[0-9]{2})?[0-9]{2}$')
+    date_criteria = re.match(pattern, date)
+    if(date_criteria):
         return True
     else:
-        bot.send_message(cid, text="Sorry! No block exist!")
+        bot.send_message(cid, text="I do not recognise this date :( Please type again")
         return False
 
-# checks if the item is available to be loaned out
-def check_item_avail(item_name, m):
+def end_date_validation(date, m):
     cid = m.chat.id
-    cell = equipment_list.find(item_name)
-    stock_quantity = int(equipment_list.cell(cell.row, 4).value)
-    if(stock_quantity >= 1):
+    pattern = re.compile(r'^(3[01]|[12][0-9]|0?[1-9])/(1[0-2]|0?[1-9])/(?:[0-9]{2})?[0-9]{2}$')
+    date_criteria = re.match(pattern, date)
+    if(date_criteria):
         return True
     else:
-        bot.send_message(cid, text="Sorry! Item has all been loaned out!")
+        bot.send_message(cid, text="I do not recognise this date :( Please type again")
         return False
-    
+
 # stock taking
 def stock_taking(item_name):
-    item = equipment_list.find(item_name)
-    in_stock = int(equipment_list.cell(item.row, 4).value) - 1
-    on_loan = int(equipment_list.cell(item.row, 5).value) + 1
-    equipment_list.update_cell(item.row, 4, in_stock)
-    equipment_list.update_cell(item.row, 5, on_loan)
+    item = item_name.splitlines()
+    d = {}
+    temp = []
+    for i in item:
+        temp = i.split("-")
+        d[(temp[0].strip())] = temp[1].strip()
+    for key, value in d.items():
+        item = equipment_list.find(re.compile(key, re.IGNORECASE))
+        in_stock = int(equipment_list.cell(item.row, 4).value) - int(value)
+        on_loan = int(equipment_list.cell(item.row, 5).value) + int(value)
+        equipment_list.update_cell(item.row, 4, in_stock)
+        equipment_list.update_cell(item.row, 5, on_loan)
     return
 
+# Edit Loan Sub-Menu
+def edit_loan_submenu(m):
+    try:
+        mid = m.message_id
+        cid = m.chat.id
+        bot.edit_message_text(message_id=mid, chat_id=cid, text='Edit on google sheets.', reply_markup=mark_up.edit_loan_submenu_markup())
+    except:
+        bot.send_message(chat_id=cid, text='An error has occured')
+
+# View Loan Sub-Menu
+def view_loan_submenu(m):
+    try:
+        mid = m.message_id
+        cid = m.chat.id
+        bot.edit_message_text(message_id=mid, chat_id=cid, text='Choose one option:', reply_markup=mark_up.view_loan_submenu_markup())
+    except:
+        bot.send_message(chat_id=cid, text='An error has occured')
 
 #return loan and keep track of history
 @bot.message_handler(commands=['returnloan'])
@@ -357,10 +414,10 @@ def find_name(m):
                 name = list_of_lists[counter][0]
                 block = list_of_lists[counter][1]
                 item = list_of_lists[counter][2]
-                date = list_of_lists[counter][3]
-                duration = list_of_lists[counter][4]
+                startdate = list_of_lists[counter][3]
+                enddate = list_of_lists[counter][4]
                 purpose = list_of_lists[counter][5]
-                a_row = "{}. {} {} {} {} {} {} row {}".format(occurance + 1,name, block, item, date, duration, purpose, counter)
+                a_row = "{}. {} {} {} {} {} {} row {}".format(occurance + 1,name, block, item, startdate, enddate, purpose, counter)
                 bot.send_message(cid, text=a_row)
                 occurance +=1
             counter += 1
@@ -385,7 +442,7 @@ def return_process(m):
         if check:
             loan_history.append_row(list_of_lists[row])
             current_loan.delete_row(row + 1)
-            bot.send_message(cid, text="Deletion is successful.")
+            bot.send_message(cid, text="Success! Loan completed.")
         else:
             bot.send_message(cid, text="Failed to delete.")
     except Exception as e:
@@ -395,15 +452,24 @@ def return_process(m):
 def stock_returning(item_name, m):
     try:
         cid = m.chat.id
-        item = equipment_list.find(item_name)
-        in_stock = int(equipment_list.cell(item.row, 4).value) + 1
-        on_loan = int(equipment_list.cell(item.row, 5).value) - 1
-        equipment_list.update_cell(item.row, 4, in_stock)
-        equipment_list.update_cell(item.row, 5, on_loan)
+        item = item_name.splitlines()
+        d = {}
+        temp = []
+        print(item)
+        for i in item:
+            temp = i.split("-")
+            d[(temp[0].strip())] = temp[1].strip()
+        for key, value in d.items():
+            item = equipment_list.find(re.compile(key, re.IGNORECASE))
+            in_stock = int(equipment_list.cell(item.row, 4).value) + int(value)
+            on_loan = int(equipment_list.cell(item.row, 5).value) - int(value)
+            equipment_list.update_cell(item.row, 4, in_stock)
+            equipment_list.update_cell(item.row, 5, on_loan)
         return True
     except:
-        bot.send_message(cid, text="Somehow the stock isnt returning.")
+        bot.send_message(cid, text="Somehow the stock isn't returning")
         return False
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
@@ -413,9 +479,14 @@ def callback_query(call):
         bot.answer_callback_query(call.id)
         create_loan(call.message)
     elif call.data == "cb_viewloan":
-        pass
+        bot.answer_callback_query(call.id)
+        view_loan_submenu(call.message)
     elif call.data == "cb_editloan":
-        pass
+        bot.answer_callback_query(call.id)
+        edit_loan_submenu(call.message)
+    elif call.data == "cb_returnloan":
+        bot.answer_callback_query(call.id)
+        return_loan(call.message)
     elif call.data == "cb_letscreate":
         bot.answer_callback_query(call.id)
         process_name(call.message)
@@ -443,15 +514,24 @@ def callback_query(call):
     elif call.data == 'cb_edititem':
         bot.answer_callback_query(call.id)
         edit_current_loan_data(call.message, "item")
-    elif call.data == 'cb_editdate':
+    elif call.data == 'cb_editstartdate':
         bot.answer_callback_query(call.id)
-        edit_current_loan_data(call.message, "date")
-    elif call.data == 'cb_editduration':
+        edit_current_loan_data(call.message, "startdate")
+    elif call.data == 'cb_editenddate':
         bot.answer_callback_query(call.id)
-        edit_current_loan_data(call.message, "duration")
+        edit_current_loan_data(call.message, "enddate")
     elif call.data == 'cb_editpurpose':
         bot.answer_callback_query(call.id)
         edit_current_loan_data(call.message, "purpose")
+    elif call.data == 'cb_viewallloans':
+        bot.answer_callback_query(call.id)
+        list_all(call.message)
+    elif call.data == 'cb_viewbyname':
+        bot.answer_callback_query(call.id)
+        list_name(call.message)
+    elif call.data == 'cb_viewexpiredloans':
+        bot.answer_callback_query(call.id)
+        list_expired(call.message)
 
 def main_loop():
     bot.polling(True)
