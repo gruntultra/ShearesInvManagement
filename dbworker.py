@@ -162,7 +162,6 @@ def edit_quantity(user_id, item_name, quantity):
     cur = sqlite_db.cursor()
     cur.execute(command)
     existing_items = cur.fetchall()[0][0].split("\n")
-    print(existing_items)
     for items in existing_items:
         if item_name in items:
             splitted_items = items.split(" ")
@@ -173,12 +172,12 @@ def edit_quantity(user_id, item_name, quantity):
             existing_items[index] = updated_item
             updated_list = "\n".join(existing_items)
             cur.execute(command_1, (updated_list,))
+            sqlite_db.commit()
+            sqlite_db.close()
             return updated_list
         else:
             continue
         return None
-    sqlite_db.commit()
-    sqlite_db.close()
 
 def if_empty(user_id):
     try:

@@ -72,19 +72,19 @@ def user_entering_item(message, send_msg):
                             reply_markup = markup.main_category_menu())
 
 def user_finish_entering_item(message):
-    bot.send_message(message.chat.id, "Enter Start Date:")
+    bot.send_message(message.chat.id, "Enter Start Date:\n\nIn this format: dd/mm/yy")
     dbworker.save_to_db(message.chat.id, "state", config.States.S_CREATE_LOAN_ENTER_SDATE.value)
 
 @bot.message_handler(func=lambda message: dbworker.get_current_state(message.chat.id) == config.States.S_CREATE_LOAN_ENTER_SDATE.value)
 def user_entering_sdate(message):
     dbworker.save_to_db(message.chat.id, "start_date", message.text)
-    bot.send_message(message.chat.id, "Enter End Date")
+    bot.send_message(message.chat.id, "Enter End Date:\n\nIn this format: dd/mm/yy")
     dbworker.save_to_db(message.chat.id, "state", config.States.S_CREATE_LOAN_ENTER_EDATE.value)
 
 @bot.message_handler(func=lambda message: dbworker.get_current_state(message.chat.id) == config.States.S_CREATE_LOAN_ENTER_EDATE.value)
 def user_entering_edate(message):
     dbworker.save_to_db(message.chat.id, "end_date", message.text)
-    bot.send_message(message.chat.id, "Enter Purpose")
+    bot.send_message(message.chat.id, "Enter Purpose:")
     dbworker.save_to_db(message.chat.id, "state", config.States.S_CREATE_LOAN_ENTER_PURPOSE.value)
 
 @bot.message_handler(func=lambda message: dbworker.get_current_state(message.chat.id) == config.States.S_CREATE_LOAN_ENTER_PURPOSE.value)
@@ -330,6 +330,9 @@ def callback_query(call):
                                 chat_id = call.message.chat.id,
                                 text = "Select any to return loan:",
                                 reply_markup = markup.return_loan_menu(expired_loans, rows))
+    elif call.data == "rno":
+        bot.answer_callback_query(call.id)
+        cmd_returnloan(call.message)
 
 
 if __name__ == "__main__":
