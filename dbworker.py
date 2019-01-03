@@ -144,6 +144,42 @@ def save_items_temp(user_id, item_name, quantity):
     except Exception as e:
         raise e
 
+def check_overlap(user_id, item_name):
+    command = 'SELECT temp_items from users WHERE user_id = {}'.format(user_id)
+    sqlite_db = sqlite3.connect(config.db)
+    cur = sqlite_db.cursor()
+    cur.execute(command)
+    existing_items = cur.fetchall()[0][0].split("\n")
+    if any(item_name in s for s in existing_items):
+        return True
+    else:
+        return False
+
+def edit_quantity(user_id, item_name, quantity):
+    command = 'SELECT temp_items from users WHERE user_id = {}'.format(user_id)
+    command_1 = 'UPDATE users SET temp_items = ? WHERE user_id = {}'.format(user_id)
+    sqlite_db = sqlite3.connect(config.db)
+    cur = sqlite_db.cursor()
+    cur.execute(command)
+    existing_items = cur.fetchall()[0][0].split("\n")
+    print(existing_items)
+    for items in existing_items:
+        if item_name in items:
+            splitted_items = items.split(" ")
+            existing_quantity = splitted_items[1].replace("x", "")
+            new_quantity = int(quantity) + int(existing_quantity)
+            updated_item = item_name + " " + str(new_quantity) + "x"
+            index = existing_items.index(items)
+            existing_items[index] = updated_item
+            updated_list = "\n".join(existing_items)
+            cur.execute(command_1, (updated_list,))
+            return updated_list
+        else:
+            continue
+        return None
+    sqlite_db.commit()
+    sqlite_db.close()
+
 def if_empty(user_id):
     try:
         command = 'SELECT temp_items from users WHERE user_id = {}'.format(user_id)

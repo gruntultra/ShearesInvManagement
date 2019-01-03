@@ -1,18 +1,11 @@
 import telebot
 import config
 import dbworker
-import gspread
 import time
 import operator
 import markups as markup
 
 bot = telebot.TeleBot(config.token)
-client = gspread.authorize(config.creds)
-
-spreadsheet = client.open("Sheares Media Inventory")
-
-current_loan = spreadsheet.worksheet("Loan")
-loan_history = spreadsheet.worksheet("Loan_history")
 
 @bot.message_handler(commands=["state"])
 def cmd_state(message):
@@ -167,6 +160,7 @@ def cmd_returnloan(message):
                         text="Select any to return loan:", 
                         reply_markup = markup.return_loan_menu(expired_loans, row))
     dbworker.save_to_db(message.chat.id, "state", config.States.S_RETURN_LOAN.value)
+#------------------Return Loan Process---------------
 
 # All the buttons handler
 @bot.callback_query_handler(func=lambda call: True)
@@ -255,11 +249,19 @@ def callback_query(call):
         db_category = dbworker.get_from_db(call.message.chat.id, "temp_category")
         category = "cat_" + db_category
         dbworker.update_loan_gsheets(db_category, item, quantity, operator.__sub__, operator.__add__)
-        list_of_items = dbworker.save_items_temp(call.message.chat.id, item, quantity)
-        bot.edit_message_text(message_id = call.message.message_id,
-                            chat_id = call.message.chat.id,
-                            text = "🏠 > " + db_category + "\n\nYour Items:\n" + list_of_items,
-                            reply_markup = markup.items_menu(category))
+        result = dbworker.check_overlap(call.message.chat.id, item)
+        if result is True:
+            updated_list = dbworker.edit_quantity(call.message.chat.id, item, quantity)
+            bot.edit_message_text(message_id = call.message.message_id,
+                                chat_id = call.message.chat.id,
+                                text = "🏠 > " + db_category + "\n\nYour Items:\n" + updated_list,
+                                reply_markup = markup.items_menu(category))
+        else:
+            list_of_items = dbworker.save_items_temp(call.message.chat.id, item, quantity)
+            bot.edit_message_text(message_id = call.message.message_id,
+                                chat_id = call.message.chat.id,
+                                text = "🏠 > " + db_category + "\n\nYour Items:\n" + list_of_items,
+                                reply_markup = markup.items_menu(category))
     elif call.data == "back_to_main_cat":
         bot.answer_callback_query(call.id)
         user_entering_item(call.message, False)
