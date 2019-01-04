@@ -195,6 +195,7 @@ def if_empty(user_id):
         raise e
 
 def update_loan_gsheets(category, item, quantity, in_stock_operator, on_loan_operator):
+    client.login()
     if category == "Camera Equipments":
         cell = camera_equipments_list.findall(item)[0]
         in_stock = camera_equipments_list.cell(cell.row, 4)
@@ -221,10 +222,12 @@ def update_loan_gsheets(category, item, quantity, in_stock_operator, on_loan_ope
         lens_list.update_cell(cell.row, 5, str(new_on_loan_val))
 
 def submit_loan_gsheets(entry):
+    client.login()
     loan.append_row(entry)
     return True
 
 def get_expiry_loans():
+    client.login()
     list_of_lists = loan.get_all_values()
     count = len(list_of_lists)
     counter = 1
@@ -244,6 +247,7 @@ def get_expiry_loans():
     return expired_loans, row
 
 def move_expired_to_history(row: int):
+    client.login()
     list_of_lists = loan.get_all_values()
     loan_history.append_row(list_of_lists[row])
     item_pair = list_of_lists[row][2]
@@ -259,12 +263,14 @@ def move_expired_to_history(row: int):
     loan.delete_row(row + 1)
 
 def get_expired_user_detail(row):
+    client.login()
     row = int(row) + 1
     user_details = loan.row_values(row)
     msg = "*User Details:*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Start Date:* {}\n" + "*End Date:* {}\n" + "*Purpose:* {}\n\nDo you want to return this?"
     return msg.format(user_details[0], user_details[1], user_details[2], user_details[3], user_details[4], user_details[5])
 
 def find_category(item):
+    client.login()
     if camera_bodies_list.findall(item):
         return "Camera Bodies"
     elif camera_equipments_list.findall(item):

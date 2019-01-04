@@ -68,6 +68,7 @@ def main_category_menu():
     return markup
 
 def items_menu(category):
+    client.login()
     list_of_camera_bodies = camera_bodies_list.col_values(1)
     camera_body_quantity = camera_bodies_list.col_values(4)
     list_of_lens = lens_list.col_values(1)
