@@ -151,6 +151,17 @@ def cmd_editloan(message):
     dbworker.save_to_db(message.chat.id, "state", config.States.S_EDIT_LOAN.value)
 #------------------Edit Loan Process---------------
 
+#------------------View Loan Process---------------
+@bot.message_handler(commands=["viewloan"])
+def cmd_viewloan(message):
+    name_list = dbworker.get_loan_names()
+    bot.edit_message_text(message_id = message.message_id ,
+                        chat_id = message.chat.id,
+                        text='Which one would you like to view?', 
+                        reply_markup = markup.view_loan_menu(name_list))
+    dbworker.save_to_db(message.chat.id, "state", config.States.S_VIEW_LOAN.value)
+#------------------View Loan Process---------------
+
 #------------------Return Loan Process---------------
 @bot.message_handler(commands=["returnloan"])
 def cmd_returnloan(message):
@@ -172,6 +183,9 @@ def callback_query(call):
     elif call.data == "cb_editloan":
         bot.answer_callback_query(call.id)
         cmd_editloan(call.message)
+    elif call.data == "cb_viewloan":
+        bot.answer_callback_query(call.id)
+        cmd_viewloan(call.message)
     elif call.data == "cb_returnloan":
         bot.answer_callback_query(call.id)
         cmd_returnloan(call.message)
@@ -243,7 +257,7 @@ def callback_query(call):
                                     chat_id = call.message.chat.id,
                                     reply_markup = markup.quantity_choosing(quantity, item))
     elif call.data.startswith("q_"):
-        bot.answer_callback_query(call.id)
+        bot.answer_callback_query(call.id, text = "Adding item... Please wait... ", show_alert = True)
         quantity = call.data.split("_")[1]
         item = call.data.split("_")[2]
         db_category = dbworker.get_from_db(call.message.chat.id, "temp_category")
@@ -282,7 +296,7 @@ def callback_query(call):
                             text = "Select the items that you want to remove:\n" + list_of_existing_items,
                             reply_markup = markup.item_removal(call.message.chat.id, list_of_existing_items))
     elif call.data.startswith("remove_"):
-        bot.answer_callback_query(call.id)
+        bot.answer_callback_query(call.id, text = "Removing items... Please wait...", show_alert = True)
         item_to_be_removed = call.data.split("_")[1]
         item = item_to_be_removed.split(" ")[0]
         quantity = item_to_be_removed.split(" ")[1].replace("x", "")
@@ -333,6 +347,20 @@ def callback_query(call):
     elif call.data == "rno":
         bot.answer_callback_query(call.id)
         cmd_returnloan(call.message)
+    # View Loan
+    elif call.data.startswith("view_"):
+        bot.answer_callback_query(call.id, text = "Loading loans...")
+        name = call.data.split("_")[1]
+        user_details = dbworker.view_loan(name)
+        msg = "*Name:* {}\n*Block:* {}\n*Item:* {}\n*Start Date:* {}\n*End Date:* {}\n*Purpose:* {}\n\n_by {}_"
+        bot.edit_message_text(message_id = call.message.message_id,
+                                chat_id = call.message.chat.id,
+                                parse_mode = "Markdown",
+                                text = msg.format(user_details[0], user_details[1], user_details[2], user_details[3], user_details[4], user_details[5], user_details[6]),
+                                reply_markup = markup.back_to_view_loan())
+    elif call.data == "cb_backtoviewloan":
+        bot.answer_callback_query(call.id)
+        cmd_viewloan(call.message)
 
 
 if __name__ == "__main__":

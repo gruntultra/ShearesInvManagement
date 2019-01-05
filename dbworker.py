@@ -277,4 +277,15 @@ def find_category(item):
         return "Camera Equipments"
     elif lens_list.findall(item):
         return "Lens"
+
+def get_loan_names():
+    client.login()
+    name_list = loan.col_values(1)[1:]
+    return name_list
+
+def view_loan(name):
+    client.login()
+    row = loan.find(name).row
+    user_details = loan.row_values(row)
+    return user_details
     

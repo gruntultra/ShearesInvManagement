@@ -133,5 +133,19 @@ def return_loan_confirmation(row):
                 InlineKeyboardButton(text = "Yes", callback_data = "ryes_{}".format(row)))
     return markup
     
+# View Loan Menu
+def view_loan_menu(name_list):
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 1
+    for name in name_list:
+        markup.add(InlineKeyboardButton(text = name, callback_data = "view_{}".format(name)))
+    markup.add(InlineKeyboardButton("Main Menu", callback_data=f"cb_mainmenu"))
+    return markup
+
+def back_to_view_loan():
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 1
+    markup.add(InlineKeyboardButton("Back", callback_data=f"cb_backtoviewloan"))
+    return markup
     
 
