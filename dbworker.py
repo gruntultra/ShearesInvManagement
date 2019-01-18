@@ -12,6 +12,8 @@ client = gspread.authorize(config.creds)
 spreadsheet = client.open("Sheares Media Inventory")
 camera_bodies_list = spreadsheet.worksheet("Camera Bodies")
 lens_list = spreadsheet.worksheet("Lens")
+batteries_list = spreadsheet.worksheet("Batteries")
+memory_card_list = spreadsheet.worksheet("Memory Card")
 camera_equipments_list = spreadsheet.worksheet("Camera Equipments")
 loan = spreadsheet.worksheet("Loan")
 loan_history = spreadsheet.worksheet("Loan_history")
@@ -24,8 +26,8 @@ def save_to_db(user_id, column_name, value):
         cur.execute(command, (str(value), str(user_id)))
         sqlite_db.commit()
         sqlite_db.close()
-    except Exception as e:
-        shmbot.bot.send_message(chat_id = user_id, text = str(e))
+    except:
+        shmbot.bot.send_message(chat_id = user_id, text = "Error saving data to database.")
 
 def get_from_db(user_id, column_name):
     try:
@@ -37,7 +39,7 @@ def get_from_db(user_id, column_name):
         sqlite_db.close()
         return result[0][0]
     except:
-        shmbot.bot.send_message(chat_id = user_id, text = "Error saving data to database.")
+        shmbot.bot.send_message(chat_id = user_id, text = "Error getting data from database.")
 
 def clear_fields(user_id):
     try:
@@ -47,10 +49,13 @@ def clear_fields(user_id):
                         item = "", 
                         start_date = "", 
                         end_date = "", 
-                        purpose = "", 
-                        to_be_edited = "", 
+                        purpose = "",  
                         temp_items = "", 
-                        temp_category = ""
+                        temp_category = "",
+                        temp_row = "",
+                        temp_field = "",
+                        items_to_add = "",
+                        items_to_remove = ""
                         WHERE user_id = {}""".format(user_id)
         sqlite_db = sqlite3.connect(config.db)
         cur = sqlite_db.cursor()
@@ -63,7 +68,7 @@ def clear_fields(user_id):
 def initialize_user(message, value):
     try:
         exist_user_command = 'SELECT user_id FROM users'
-        command = '''INSERT INTO users VALUES(?, ?, ?, null, null, null ,null ,null ,null, null, "", null)'''
+        command = '''INSERT INTO users VALUES(?, ?, ?, null, null, null ,null ,null, null, "", null, null, null, "", "")'''
         sqlite_db = sqlite3.connect(config.db)
         cur = sqlite_db.cursor()
         cur.execute(exist_user_command)
@@ -78,8 +83,8 @@ def initialize_user(message, value):
             sqlite_db.commit()
             sqlite_db.close()
             return True
-    except Exception as e:
-        raise e
+    except:
+        print("Initialization error")
 
 def get_current_state(user_id):
     try:
@@ -90,9 +95,9 @@ def get_current_state(user_id):
         state = cur.fetchall()
         sqlite_db.close()
         return state[0][0]
-    except Exception as e:
-        raise e
-
+    except:
+        shmbot.bot.send_message(chat_id = user_id, text = "Please /start again.")
+        
 def get_entry(user_id):
     try:
         command = 'SELECT * FROM users where user_id = {}'.format(str(user_id))
@@ -102,31 +107,8 @@ def get_entry(user_id):
         entries = cur.fetchall()
         sqlite_db.close()
         return entries[0]
-    except Exception as e:
-        raise e
-
-def set_field(user_id, field):
-    try:
-        command = 'UPDATE users SET to_be_edited = ? WHERE user_id = ?'
-        sqlite_db = sqlite3.connect(config.db)
-        cur = sqlite_db.cursor()
-        cur.execute(command, (str(field), str(user_id)))
-        sqlite_db.commit()
-        sqlite_db.close()
-    except Exception as e:
-        raise e
-
-def get_field(user_id):
-    try:
-        command = 'SELECT to_be_edited from users WHERE user_id = {}'.format(user_id)
-        sqlite_db = sqlite3.connect(config.db)
-        cur = sqlite_db.cursor()
-        cur.execute(command)
-        field = cur.fetchall()
-        sqlite_db.close()
-        return field[0][0]
-    except Exception as e:
-        raise e
+    except:
+        print("Get entry error")
 
 def save_items_temp(user_id, item_name, quantity):
     try:
@@ -141,8 +123,8 @@ def save_items_temp(user_id, item_name, quantity):
         sqlite_db.commit()
         sqlite_db.close()
         return new_items
-    except Exception as e:
-        raise e
+    except:
+        print("Error saving items")
 
 def check_overlap(user_id, item_name):
     command = 'SELECT temp_items from users WHERE user_id = {}'.format(user_id)
@@ -192,7 +174,73 @@ def if_empty(user_id):
         else:
             return False
     except Exception as e:
-        raise e
+        print("If empty error")
+
+def submit_loan_gsheets(entry):
+    try:
+        client.login()
+        loan.append_row(entry)
+        items = entry[2].split("\n")
+        for item in items:
+            item_name = item.split(" ")[0]
+            if camera_bodies_list.findall(item_name):
+                command = "SELECT In_Stock, On_Loan FROM 'Camera Bodies' WHERE Equipment = '{}'".format(item_name)
+                sqlite_db = sqlite3.connect(config.inv_db)
+                cur = sqlite_db.cursor()
+                cur.execute(command)
+                existing_quantity = cur.fetchall()
+                in_stock_qty = existing_quantity[0][0]
+                on_loan_qty = existing_quantity[0][1]
+                item = camera_bodies_list.findall(item_name)[0]
+                camera_bodies_list.update_cell(item.row, 4, in_stock_qty)
+                camera_bodies_list.update_cell(item.row, 5, on_loan_qty)
+            elif camera_equipments_list.findall(item_name):
+                command = "SELECT In_Stock, On_Loan FROM 'Camera Equipments' WHERE Equipment = '{}'".format(item_name)
+                sqlite_db = sqlite3.connect(config.inv_db)
+                cur = sqlite_db.cursor()
+                cur.execute(command)
+                existing_quantity = cur.fetchall()
+                in_stock_qty = existing_quantity[0][0]
+                on_loan_qty = existing_quantity[0][1]
+                item = camera_equipments_list.findall(item_name)[0]
+                camera_equipments_list.update_cell(item.row, 4, in_stock_qty)
+                camera_equipments_list.update_cell(item.row, 5, on_loan_qty)
+            elif lens_list.findall(item_name):
+                command = "SELECT In_Stock, On_Loan FROM 'Lens' WHERE Equipment = '{}'".format(item_name)
+                sqlite_db = sqlite3.connect(config.inv_db)
+                cur = sqlite_db.cursor()
+                cur.execute(command)
+                existing_quantity = cur.fetchall()
+                in_stock_qty = existing_quantity[0][0]
+                on_loan_qty = existing_quantity[0][1]
+                item = lens_list.findall(item_name)[0]
+                lens_list.update_cell(item.row, 4, in_stock_qty)
+                lens_list.update_cell(item.row, 5, on_loan_qty)
+            elif batteries_list.findall(item_name):
+                command = "SELECT In_Stock, On_Loan FROM 'Batteries' WHERE Equipment = '{}'".format(item_name)
+                sqlite_db = sqlite3.connect(config.inv_db)
+                cur = sqlite_db.cursor()
+                cur.execute(command)
+                existing_quantity = cur.fetchall()
+                in_stock_qty = existing_quantity[0][0]
+                on_loan_qty = existing_quantity[0][1]
+                item = batteries_list.findall(item_name)[0]
+                batteries_list.update_cell(item.row, 4, in_stock_qty)
+                batteries_list.update_cell(item.row, 5, on_loan_qty)
+            elif memory_card_list.findall(item_name): 
+                command = "SELECT In_Stock, On_Loan FROM 'Memory Cards' WHERE Equipment = '{}'".format(item_name)
+                sqlite_db = sqlite3.connect(config.inv_db)
+                cur = sqlite_db.cursor()
+                cur.execute(command)
+                existing_quantity = cur.fetchall()
+                in_stock_qty = existing_quantity[0][0]
+                on_loan_qty = existing_quantity[0][1]
+                item = memory_card_list.findall(item_name)[0]
+                memory_card_list.update_cell(item.row, 4, in_stock_qty)
+                memory_card_list.update_cell(item.row, 5, on_loan_qty)
+        return True
+    except:
+        return False
 
 def update_loan_gsheets(category, item, quantity, in_stock_operator, on_loan_operator):
     client.login()
@@ -220,11 +268,22 @@ def update_loan_gsheets(category, item, quantity, in_stock_operator, on_loan_ope
         new_on_loan_val = on_loan_operator(int(on_loan.value), int(quantity))
         lens_list.update_cell(cell.row, 4, str(new_in_stock_val))
         lens_list.update_cell(cell.row, 5, str(new_on_loan_val))
-
-def submit_loan_gsheets(entry):
-    client.login()
-    loan.append_row(entry)
-    return True
+    elif category == "Batteries":
+        cell = batteries_list.findall(item)[0]
+        in_stock = batteries_list.cell(cell.row, 4)
+        on_loan = batteries_list.cell(cell.row, 5)
+        new_in_stock_val = in_stock_operator(int(in_stock.value), int(quantity))
+        new_on_loan_val = on_loan_operator(int(on_loan.value), int(quantity))
+        batteries_list.update_cell(cell.row, 4, str(new_in_stock_val))
+        batteries_list.update_cell(cell.row, 5, str(new_on_loan_val))
+    elif category == "Memory Cards":
+        cell = memory_card_list.findall(item)[0]
+        in_stock = memory_card_list.cell(cell.row, 4)
+        on_loan = memory_card_list.cell(cell.row, 5)
+        new_in_stock_val = in_stock_operator(int(in_stock.value), int(quantity))
+        new_on_loan_val = on_loan_operator(int(on_loan.value), int(quantity))
+        memory_card_list.update_cell(cell.row, 4, str(new_in_stock_val))
+        memory_card_list.update_cell(cell.row, 5, str(new_on_loan_val))
 
 def get_expiry_loans():
     client.login()
@@ -259,33 +318,114 @@ def move_expired_to_history(row: int):
         item = split_item[0]
         quantity = split_item[1].replace("x", "")
         category = find_category(item)
-        update_loan_gsheets(category, item, quantity, operator.__add__, operator.__sub__)
     loan.delete_row(row + 1)
 
 def get_expired_user_detail(row):
     client.login()
     row = int(row) + 1
     user_details = loan.row_values(row)
-    msg = "*User Details:*\n\n" + "*Name:* {}\n" + "*Block:* {}\n" + "*Item:* {}\n" + "*Start Date:* {}\n" + "*End Date:* {}\n" + "*Purpose:* {}\n\nDo you want to return this?"
-    return msg.format(user_details[0], user_details[1], user_details[2], user_details[3], user_details[4], user_details[5])
+    return user_details
 
 def find_category(item):
-    client.login()
-    if camera_bodies_list.findall(item):
-        return "Camera Bodies"
-    elif camera_equipments_list.findall(item):
-        return "Camera Equipments"
-    elif lens_list.findall(item):
-        return "Lens"
+    categories = get_table_name()
+    command = "SELECT * FROM '{}' WHERE Equipment = ?"
+    sqlite_db = sqlite3.connect(config.inv_db)
+    cur = sqlite_db.cursor()
+    for category in categories:
+        new_command = command.format(category[0])
+        cur.execute(new_command, (item,))
+        data = cur.fetchall()
+        if data:
+            break
+        else:
+            continue
+    return category[0]
 
 def get_loan_names():
     client.login()
     name_list = loan.col_values(1)[1:]
-    return name_list
+    start_date = loan.col_values(4)[1:]
+    a = len(name_list) + 2
+    return name_list, start_date, list(range(2, a))
 
-def view_loan(name):
+def view_loan(user_row):
     client.login()
-    row = loan.find(name).row
-    user_details = loan.row_values(row)
+    user_details = loan.row_values(user_row)
     return user_details
+
+def delete_loan(user_row):
+    client.login()
+    loan.delete_row(int(user_row))
+    pass
+
+def update_editted_data(row, col, new_data):
+    client.login()
+    my_dict = {"name":1, "block":2, "startdate":4, "enddate":5, "purpose":6}
+    loan.update_cell(row, my_dict[col], new_data)
+
+def update_items(row, new_data):
+    client.login()
+    loan.update_cell(row, 3, new_data)
+
+def get_table_name():
+    try:
+        command = "SELECT name FROM sqlite_master WHERE type = 'table';"
+        sqlite_db = sqlite3.connect(config.inv_db)
+        cur = sqlite_db.cursor()
+        cur.execute(command)
+        categories = cur.fetchall()
+        return categories
+    except:
+        print("Error while quering database")
+
+def get_from_inv_db(category):
+    command = "SELECT Equipment, In_Stock FROM '{}'".format(category)
+    sqlite_db = sqlite3.connect(config.inv_db)
+    cur = sqlite_db.cursor()
+    cur.execute(command)
+    items = cur.fetchall()
+    return items
+
+def stock_taking(category, item, quantity, lending):
+    try:
+        select_command = "SELECT In_Stock, On_Loan FROM '{}' WHERE Equipment = '{}'".format(category, item)
+        update_command = "UPDATE '{}' set In_Stock = ?, On_Loan = ? WHERE Equipment = '{}'".format(category, item)
+        sqlite_db = sqlite3.connect(config.inv_db)
+        cur = sqlite_db.cursor()
+        cur.execute(select_command)
+        existing_quantity = cur.fetchall()
+        in_stock_qty = existing_quantity[0][0]
+        on_loan_qty = existing_quantity[0][1]
+        if lending:
+            new_in_stock = in_stock_qty - int(quantity)
+            new_on_loan = on_loan_qty + int(quantity)
+        else:
+            new_in_stock = in_stock_qty + int(quantity)
+            new_on_loan = on_loan_qty - int(quantity)
+        cur.execute(update_command, (new_in_stock, new_on_loan,))
+        sqlite_db.commit()
+        sqlite_db.close()
+    except:
+        print("database error")
+
+def add_or_remove(user_id, category, item, quantity, add):
+    if add:
+        select_command = "SELECT items_to_add FROM users WHERE user_id = {}".format(user_id)
+        update_command = "UPDATE users SET items_to_add = ? WHERE user_id = {}".format(user_id)
+    else:
+        select_command = "SELECT items_to_remove FROM users WHERE user_id = {}".format(user_id)
+        update_command = "UPDATE users SET items_to_remove = ? WHERE user_id = {}".format(user_id)
+    data = category + "," + item + "," + quantity
+    sqlite_db = sqlite3.connect(config.db)
+    cur = sqlite_db.cursor()
+    cur.execute(select_command)
+    existing_items = cur.fetchall()[0][0]
+    new_items = existing_items + "\n" + category + "," + item + "," + quantity
+    cur.execute(update_command, (new_items,))
+    sqlite_db.commit()
+    sqlite_db.close()
+    
+    
+    
+
     

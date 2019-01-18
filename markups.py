@@ -1,5 +1,6 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import config
+import dbworker
 import gspread
 
 client = gspread.authorize(config.creds)
@@ -8,23 +9,16 @@ spreadsheet = client.open("Sheares Media Inventory")
 camera_bodies_list = spreadsheet.worksheet("Camera Bodies")
 lens_list = spreadsheet.worksheet("Lens")
 camera_equipments_list = spreadsheet.worksheet("Camera Equipments")
+batteries_list = spreadsheet.worksheet("Batteries")
+memory_card_list = spreadsheet.worksheet("Memory Card")
 
 # Main Menu
 def main_menu():
     markup = InlineKeyboardMarkup()
     markup.row_width = 2
     markup.add(InlineKeyboardButton("Create Loan", callback_data=f"cb_createloan"), 
-                InlineKeyboardButton("View Loan", callback_data=f"cb_viewloan"), 
-                InlineKeyboardButton("Edit Loan", callback_data=f"cb_editloan"),
-                InlineKeyboardButton("Return Loan", callback_data=f"cb_returnloan"))
-    return markup
-
-# Edit Loan Main Menu
-def edit_loan_main_menu():
-    markup = InlineKeyboardMarkup()
-    markup.row_width = 1
-    markup.add(InlineKeyboardButton("Open Google Sheets", url='https://docs.google.com/spreadsheets/d/1FtSe_qt3lgHE8TTkqaSwWfzCcKk8WZ_Rdblw7nXsIWc/edit?usp=sharing'),
-               InlineKeyboardButton("Main Menu", callback_data=f"cb_mainmenu"))
+                InlineKeyboardButton("View Loans", callback_data=f"cb_viewloan"),
+                InlineKeyboardButton("Return Expired Loans", callback_data=f"cb_returnloan"))
     return markup
 
 # Createloan Sub Menu
@@ -39,63 +33,36 @@ def create_loan_sub_menu():
 def submit_loan_sub_menu():
     markup = InlineKeyboardMarkup()
     markup.row_width = 2
-    markup.add(InlineKeyboardButton("Edit Loan", callback_data=f"cb_editloan_cl"), 
+    markup.add(InlineKeyboardButton("Cancel Loan", callback_data=f"cb_cancelloan_cl"),
                 InlineKeyboardButton("Submit Loan", callback_data=f"cb_submitloan_cl"))
     return markup
 
-# Edit loan menu during createloan
-def edit_current_loan_sub_menu():
+def cancel_loan_confirmation():
     markup = InlineKeyboardMarkup()
     markup.row_width = 2
-    markup.add(InlineKeyboardButton("Edit Name", callback_data=f"cb_editname"), 
-                InlineKeyboardButton("Edit Block", callback_data=f"cb_editblock"),
-                InlineKeyboardButton("Edit Item", callback_data=f"cb_edititem"),
-                InlineKeyboardButton("Edit Start Date", callback_data=f"cb_editstartdate"),
-                InlineKeyboardButton("Edit End Date", callback_data=f"cb_editenddate"),
-                InlineKeyboardButton("Edit Purpose", callback_data=f"cb_editpurpose"),
-                InlineKeyboardButton("Back", callback_data=f'cb_backtoverifyloan'))
+    markup.add(InlineKeyboardButton("Yes", callback_data=f"yes_cancelloan"),
+                InlineKeyboardButton("No", callback_data=f"no_cancelloan"))
     return markup
 
 # Item menu
 def main_category_menu():
-    categories = ["Camera Equipments", "Camera Bodies", "Lens"]
+    categories = dbworker.get_table_name()
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
     for category in categories:
-        markup.add(InlineKeyboardButton(text = category, callback_data = "cat_{}".format(category)))
+        markup.add(InlineKeyboardButton(text = category[0], callback_data = "cat_{}".format(category[0])))
     markup.add(InlineKeyboardButton(text = "Remove items", callback_data = f"cb_remove_items"))
     markup.add(InlineKeyboardButton(text = "Submit items", callback_data = f"cb_submit_items"))
     return markup
 
 def items_menu(category):
-    client.login()
-    list_of_camera_bodies = camera_bodies_list.col_values(1)
-    camera_body_quantity = camera_bodies_list.col_values(4)
-    list_of_lens = lens_list.col_values(1)
-    lens_quantity = lens_list.col_values(4)
-    list_of_camera_equipments = camera_equipments_list.col_values(1)
-    camera_equipments_quantity = camera_equipments_list.col_values(4)
-    if category == "cat_Camera Equipments":
-        buttons = list_of_camera_equipments[1:]
-        quantities = camera_equipments_quantity[1:]
-        markup = InlineKeyboardMarkup()
-        markup.row_width = 1
-        for button_name, quantity in zip(buttons, quantities):
-            markup.add(InlineKeyboardButton(text = button_name + " " + quantity + "x", callback_data = "item_{}_{}".format(button_name, quantity)))
-    elif category == "cat_Camera Bodies":
-        buttons = list_of_camera_bodies[1:]
-        quantities = camera_body_quantity[1:]
-        markup = InlineKeyboardMarkup()
-        markup.row_width = 1
-        for button_name, quantity in zip(buttons, quantities):
-            markup.add(InlineKeyboardButton(text = button_name + " " + quantity + "x", callback_data = "item_{}_{}".format(button_name, quantity)))
-    elif category == "cat_Lens":
-        buttons = list_of_lens[1:]
-        quantities = lens_quantity[1:]
-        markup = InlineKeyboardMarkup()
-        markup.row_width = 1
-        for button_name, quantity in zip(buttons, quantities):
-            markup.add(InlineKeyboardButton(text = button_name + " " + quantity + "x", callback_data = "item_{}_{}".format(button_name, quantity)))
+    items = dbworker.get_from_inv_db(category)
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 1
+    for item in items:
+        item_name = item[0]
+        quantity = str(item[1])
+        markup.add(InlineKeyboardButton(text = item_name + " " + quantity + "x", callback_data = "item_{}_{}".format(item_name, quantity)))
     markup.add(InlineKeyboardButton(text = "Back to 🏠", callback_data = f"back_to_main_cat"))
     return markup
 
@@ -134,18 +101,39 @@ def return_loan_confirmation(row):
     return markup
     
 # View Loan Menu
-def view_loan_menu(name_list):
+def view_loan_menu(name_list, start_date, rows):
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
-    for name in name_list:
-        markup.add(InlineKeyboardButton(text = name, callback_data = "view_{}".format(name)))
+    for name, date, row in zip(name_list, start_date, rows):
+        markup.add(InlineKeyboardButton(text = name + ", Created on " + date, callback_data = "view_{}_{}".format(name, row)))
     markup.add(InlineKeyboardButton("Main Menu", callback_data=f"cb_mainmenu"))
     return markup
 
-def back_to_view_loan():
+def view_loan_sub_menu():
     markup = InlineKeyboardMarkup()
-    markup.row_width = 1
-    markup.add(InlineKeyboardButton("Back", callback_data=f"cb_backtoviewloan"))
+    markup.row_width = 2
+    markup.add(InlineKeyboardButton("Edit Loan", callback_data=f"editloan"),
+                InlineKeyboardButton("Delete Loan", callback_data=f"deleteloan"),
+                InlineKeyboardButton("Back", callback_data=f"backtoviewloan"))
+    return markup
+
+def delete_loan_sub_menu():
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 2
+    markup.add(InlineKeyboardButton(text = "No", callback_data = f"back_to_user"),
+                InlineKeyboardButton(text = "Yes", callback_data = f"yes_delete"))
+    return markup
+
+def edit_loan_sub_menu():
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 2
+    markup.add(InlineKeyboardButton(text = "Edit Name", callback_data = f"edit_name"),
+                InlineKeyboardButton(text = "Edit Block", callback_data = f"edit_block"),
+                InlineKeyboardButton(text = "Edit Item", callback_data = f"edit_item"),
+                InlineKeyboardButton(text = "Edit Start Date", callback_data = f"edit_startdate"),
+                InlineKeyboardButton(text = "Edit End Date", callback_data = f"edit_enddate"),
+                InlineKeyboardButton(text = "Edit Purpose", callback_data = f"edit_purpose"),
+                InlineKeyboardButton(text = "Back", callback_data = f"back_to_user"))
     return markup
     
 
