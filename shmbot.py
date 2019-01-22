@@ -8,18 +8,10 @@ import markups as markup
 
 bot = telebot.TeleBot(config.token)
 
-@bot.message_handler(commands=["test"])
-def cmd_test(message):
-    dbworker.find_category("24-70-tamron")
-
 @bot.message_handler(commands=["state"])
 def cmd_state(message):
     state = dbworker.get_current_state(message.chat.id)
     print("State : " + state + " (" + str(message.chat.id) + ")")
-
-@bot.message_handler(commands=["abort"])
-def cmd_abort(message):
-    pass
 
 @bot.message_handler(commands=["start"])
 def cmd_initialize(message):
@@ -34,9 +26,9 @@ def cmd_initialize(message):
 def cmd_menu(message):
     try:
         bot.edit_message_text(message_id = message.message_id,
-                            chat_id = message.chat.id,
-                            text = "Hi! What would you like to do?",
-                            reply_markup = markup.main_menu())
+                                chat_id = message.chat.id,
+                                text = "Hi! What would you like to do?",
+                                reply_markup = markup.main_menu())
     except:
         bot.send_message(message.chat.id, "Hi! What would you like to do?", reply_markup = markup.main_menu())
     dbworker.save_to_db(message.chat.id, "state", config.States.S_MAIN_MENU.value)
@@ -340,7 +332,6 @@ def callback_query(call):
                     category = item_to_add.split(",")[0]
                     item_name = item_to_add.split(",")[1]
                     quantity = item_to_add.split(",")[2]
-                    print(category,item_name,quantity)
                     dbworker.update_loan_gsheets(category, item_name, quantity, operator.__sub__, operator.__add__)
                 for item_to_remove in items_to_remove:
                     category = item_to_remove.split(",")[0]
@@ -446,6 +437,10 @@ def callback_query(call):
                                 reply_markup = markup.view_loan_sub_menu())
     elif call.data == "yes_delete":
         bot.answer_callback_query(call.id)
+        bot.edit_message_text(message_id = call.message.message_id,
+                                chat_id = call.message.chat.id,
+                                parse_mode = "Markdown",
+                                text = "Deleting...Please wait...")
         row = dbworker.get_from_db(call.message.chat.id, "temp_row")
         items_list = dbworker.view_loan(row)[2].split("\n")
         for items in items_list:

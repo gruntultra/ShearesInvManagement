@@ -135,5 +135,4 @@ def edit_loan_sub_menu():
                 InlineKeyboardButton(text = "Edit Purpose", callback_data = f"edit_purpose"),
                 InlineKeyboardButton(text = "Back", callback_data = f"back_to_user"))
     return markup
-    
 

@@ -68,7 +68,7 @@ def clear_fields(user_id):
 def initialize_user(message, value):
     try:
         exist_user_command = 'SELECT user_id FROM users'
-        command = '''INSERT INTO users VALUES(?, ?, ?, null, null, null ,null ,null, null, "", null, null, null, "", "")'''
+        command = '''INSERT INTO users VALUES(?, ?, ?, "", "", "", "", "", "", "", "", "", "", "", "")'''
         sqlite_db = sqlite3.connect(config.db)
         cur = sqlite_db.cursor()
         cur.execute(exist_user_command)
