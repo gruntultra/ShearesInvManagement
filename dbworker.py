@@ -397,11 +397,11 @@ def stock_taking(category, item, quantity, lending):
         in_stock_qty = existing_quantity[0][0]
         on_loan_qty = existing_quantity[0][1]
         if lending:
-            new_in_stock = in_stock_qty - int(quantity)
-            new_on_loan = on_loan_qty + int(quantity)
+            new_in_stock = int(in_stock_qty) - int(quantity)
+            new_on_loan = int(on_loan_qty) + int(quantity)
         else:
-            new_in_stock = in_stock_qty + int(quantity)
-            new_on_loan = on_loan_qty - int(quantity)
+            new_in_stock = int(in_stock_qty) + int(quantity)
+            new_on_loan = int(on_loan_qty) - int(quantity)
         cur.execute(update_command, (new_in_stock, new_on_loan,))
         sqlite_db.commit()
         sqlite_db.close()

@@ -8,6 +8,10 @@ import markups as markup
 
 bot = telebot.TeleBot(config.token)
 
+@bot.message_handler(commands=["test"])
+def cmd_test(message):
+    clear(message)
+
 @bot.message_handler(commands=["state"])
 def cmd_state(message):
     state = dbworker.get_current_state(message.chat.id)
@@ -15,6 +19,7 @@ def cmd_state(message):
 
 @bot.message_handler(commands=["start"])
 def cmd_initialize(message):
+    clear(message)
     val = dbworker.initialize_user(message, config.States.S_START.value)
     if val is True:
         msg  = "Welcome " + str(message.from_user.username) + " !"
@@ -24,6 +29,7 @@ def cmd_initialize(message):
 
 @bot.message_handler(commands=["menu"])
 def cmd_menu(message):
+    clear(message)
     try:
         bot.edit_message_text(message_id = message.message_id,
                                 chat_id = message.chat.id,
@@ -33,9 +39,27 @@ def cmd_menu(message):
         bot.send_message(message.chat.id, "Hi! What would you like to do?", reply_markup = markup.main_menu())
     dbworker.save_to_db(message.chat.id, "state", config.States.S_MAIN_MENU.value)
 
+def clear(message):
+    state = dbworker.get_current_state(message.chat.id)
+    if state == "2.3":
+        items = dbworker.get_from_db(message.chat.id, "temp_items")[1:].split("\n")
+    else:
+        items = dbworker.get_from_db(message.chat.id, "item")[1:].split("\n")
+    for item in items:
+        if not item:
+            dbworker.clear_fields(message.chat.id)
+            return
+        if item:
+            item_name = item.split(" ")[0]
+            quantity = item.split(" ")[1].replace("x", "")
+            category = dbworker.find_category(item_name)
+            dbworker.stock_taking(category, item_name, quantity, False)
+    dbworker.clear_fields(message.chat.id)
+
 #------------------Create Loan Process-------------
 @bot.message_handler(commands=["createloan"])
 def cmd_createloan(message):
+    clear(message)
     try:
         bot.edit_message_text(message_id= message.message_id, 
                             chat_id=message.chat.id, 
@@ -141,6 +165,7 @@ def entry_submission(message):
 #------------------View Loan Process---------------
 @bot.message_handler(commands=["viewloan"])
 def cmd_viewloan(message):
+    clear(message)
     name_list, start_date, row = dbworker.get_loan_names()
     try:
         bot.edit_message_text(message_id = message.message_id ,
@@ -168,6 +193,7 @@ def edit_loan(message):
 #------------------Return Loan Process---------------
 @bot.message_handler(commands=["returnloan"])
 def cmd_returnloan(message):
+    clear(message)
     expired_loans, row = dbworker.get_expiry_loans()
     try:
         bot.edit_message_text(message_id = message.message_id ,
